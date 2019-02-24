@@ -1,0 +1,10 @@
+The classes you can skip can be calculated by :
+(4*(Classes attended) - 3*(Total classes))/3
+The result is floored to integer value. Also, for lab slots, the result is divided by 2 as 1 class in lab is two classes
+
+The classes you need to attend can be calculated by:
+3*(Total Classes) - 4*(classes attended)
+
+The data is scraped from FFCS site using specific url for the day programmed is run.
+This script doesn't check whether future classes will be held or not.
+
