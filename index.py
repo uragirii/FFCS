@@ -1,4 +1,5 @@
 import time
+import datetime
 import sys
 import os
 import zipfile
@@ -52,6 +53,8 @@ def get_captcha(driver,element):
     :return: The captcha as entered by user
     """
     path = 'Files/captchas/captcha.png'
+    if not os.path.exists('Files/captchas'):
+        os.mkdir('Files/captchas')
     location = element.location
     size = element.size
     driver.save_screenshot(path)
@@ -61,7 +64,7 @@ def get_captcha(driver,element):
     right = location['x'] + size['width']
     bottom = location['y'] + size['height']
     image = image.crop((left, top, right, bottom))
-    image.show();
+    image.show()
     captcha = input("Please enter the captcha code as shown\n")
     image.save('Files/captchas/captcha.png', 'png')
     return captcha
@@ -98,10 +101,32 @@ def download_file(url, filename, folder):
     return True
 
 
+def create_date():
+    num_to_abbr = {1:'Jan',
+                   2:'Feb',
+                   3:'March',
+                   4:'Apr',
+                   5:'May',
+                   6:'Jun',
+                   7:'Jul',
+                   8:'Aug',
+                   9:'Sep',
+                   10:'Oct',
+                   11:'Nov',
+                   12:'Dec',}
+
+    d = datetime.datetime.now().day
+    m = num_to_abbr[datetime.datetime.now().month]
+    y = str(datetime.datetime.now().year)
+    if d < 10:
+        d = "0" + str(d)
+    return str(d) + "-" + str(m) + "-" + str(y)
+
+
 reg_num = input("Enter your register number\n")
 password = input("Enter your FFCS password\n")
 STUDENT_URL = "https://academicscc.vit.ac.in/student/stud_login.asp"
-ATTENDACE_URL = r'https://academicscc.vit.ac.in/student/attn_report.asp?sem=WS&fmdt=03-Dec-2018&todt=23-Feb-2019'
+ATTENDACE_URL = r'https://academicscc.vit.ac.in/student/attn_report.asp?sem=WS&fmdt=03-Dec-2018&todt='+create_date()
 
 
 # -------------------------------INITIALISE CHROME DRIVER--------------------------------
