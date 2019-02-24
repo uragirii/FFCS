@@ -8,6 +8,7 @@ try:
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.keys import Keys
+    from selenium.common.exceptions import NoAlertPresentException
     from bs4 import BeautifulSoup
     import lxml
     from PIL import Image
@@ -37,14 +38,35 @@ class Subject:
         self.slot = raw_data[4]
         self.present = int(str(raw_data[6]))
         self.total = int(str(raw_data[7]))
-        self.percent = raw_data[8]
-        self.class_left = self.__calc_skip_class()
+        self.percent = int(raw_data[8])
+        self.debarred = ""
+        self.class_need = 0
+        if self.percent < 75:
+            self.debarred = "DEBARRED RISK"
+            self.class_need = self._calc_need_class()
+        self.class_left = self._calc_skip_class()
+
+    def show_subject_details(self):
+        print("\t---")
+        print(self.code, self.name, self.debarred)
+        print("Slot", self.slot)
+        print("Attended", self.present, "out of", self.total, "(" + str(self.percent) + "%)")
+        if self.debarred == "":
+            print("Classes you can skip :", self.class_left)
+        else:
+            print("Classes you need to attend :", self.class_need)
 
     def __str__(self):
-        return self.code+" "+self.name + "\nClasses You can skip: " + str(self.class_left)
+        return self.code
 
-    def __calc_skip_class(self):
-        return int((4*self.present - 3*self.total)/3)
+    def _calc_skip_class(self):
+        class_skip = int((4 * self.present - 3 * self.total) / 3)
+        if 'L' in self.slot:
+            class_skip = int(class_skip/2)
+        return class_skip
+
+    def _calc_need_class(self):
+        return 3 * self.total - 4 * self.present
 
 
 def get_captcha(driver,element):
@@ -123,8 +145,50 @@ def create_date():
     return str(d) + "-" + str(m) + "-" + str(y)
 
 
-reg_num = input("Enter your register number\n")
-password = input("Enter your FFCS password\n")
+def get_cred():
+    reg_num = input("Enter your register number\n")
+    password = input("Enter your FFCS password\n")
+    return reg_num, password
+
+
+def login(driver, reg_num, password):
+    driver.get(STUDENT_URL)
+
+    captcha_img = driver.find_element_by_xpath('//*[@id="imgCaptcha"]')
+    captcha = ""
+
+    try:
+        captcha = get_captcha(driver, captcha_img).upper()
+        # todo check whether captcha is correct and then rename it.
+        # os.rename('Files/captchas/captcha.png', 'Files/captchas/'+captcha+'.png')
+    except Exception as e:
+        print(e)
+
+    data = {
+        'regno': reg_num,
+        'passwd': password,
+        'vrfcd': captcha,
+    }
+    regno = driver.find_element_by_xpath(
+        '/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[2]/td[2]'
+        '/input')
+    passwd = driver.find_element_by_xpath(
+        '/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[3]/td[2]'
+        '/input')
+    cap = driver.find_element_by_xpath('/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[5]/td/'
+                                       'input')
+
+    regno.send_keys(data['regno'])
+    passwd.send_keys(data['passwd'])
+    cap.send_keys(data['vrfcd'])
+    driver.find_element_by_xpath("/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[6]/td/"
+                                 "input[1]").click()
+
+
+
+
+
+reg_num, password = get_cred()
 STUDENT_URL = "https://academicscc.vit.ac.in/student/stud_login.asp"
 ATTENDACE_URL = r'https://academicscc.vit.ac.in/student/attn_report.asp?sem=WS&fmdt=03-Dec-2018&todt='+create_date()
 
@@ -148,43 +212,40 @@ if not os.path.exists(chrome_driver):   # Checking and downloading chrome driver
     print("Complete.")
 
 
-driver = webdriver.Chrome(chrome_driver, options=options)
-driver.get(STUDENT_URL)
+driver = webdriver.Chrome(chrome_driver, options= options)
+flag = True
 
-captcha_img = driver.find_element_by_xpath('//*[@id="imgCaptcha"]')
-captcha = ""
-try:
-    captcha = get_captcha(driver, captcha_img).upper()
-    os.rename('Files/captchas/captcha.png', 'Files/captchas/'+captcha+'.png')
-except Exception as e:
-    print(e)
+while flag:
+    login(driver, reg_num, password)
 
-data = {
-    'regno': reg_num,
-    'passwd': password,
-    'vrfcd': captcha,
-}
-
-regno = driver.find_element_by_xpath('/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[2]/td[2]/input')
-passwd = driver.find_element_by_xpath('/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[3]/td[2]/input')
-cap = driver.find_element_by_xpath('/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[5]/td/input')
-
-regno.send_keys(data['regno'])
-passwd.send_keys(data['passwd'])
-cap.send_keys(data['vrfcd'])
-driver.find_element_by_xpath("/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[6]/td/input[1]").click()
+    try:
+        alert = driver.switch_to.alert
+        alert_text =alert.text
+        # Check for illegal credentials
+        if 'Password' in alert_text:
+            print("You have entered wrong Registration Number or Password. Please Enter again")
+            reg_num, password = get_cred()
+            alert.accept()
+        # Check for capctha
+        if 'Verification' in alert_text:
+            print("You have entered wrong value of captcha. Please enter again")
+            alert.accept()
+    except NoAlertPresentException as e:
+        flag = False
 
 # todo check whether logged in succesfully
-# Logged In succesfully
-# todo make a function to generate data and make attendance url
+# Logged In successfully
 
 driver.get(ATTENDACE_URL)
 soup = BeautifulSoup(driver.page_source, 'lxml')
+all_subjects = []
 for tr in soup.find_all('tr', attrs={'onmouseout': "this.bgColor='#E6F2FF'"}):
     raw_data = []
     for td in tr.find_all('td'):
         raw_data.append(td.text)
     temp_sub = Subject(raw_data)
-    print(temp_sub)
+    temp_sub.show_subject_details()
+    all_subjects.append(temp_sub)
+print("Got details of all the subjects from date 3-Dec-2018 to", create_date(), "\n")
 
 driver.close()
