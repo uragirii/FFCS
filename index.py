@@ -88,7 +88,7 @@ def get_captcha(driver,element):
     image = image.crop((left, top, right, bottom))
     image.show()
     captcha = input("Please enter the captcha code as shown.(Not Case Sensitive)\nIf there is error while showing "
-                    "captcha, go to Files/captchas folder and open capctcha.png, and then enter the code\n")
+                    "captcha, go to Files/captchas folder and open captcha.png, and then enter the code\n")
     image.save('Files/captchas/captcha.png', 'png')
     return captcha
 
@@ -232,6 +232,7 @@ while flag:
             print("You have entered wrong value of captcha. Please enter again")
             alert.accept()
     except NoAlertPresentException as e:
+        os.remove('Files/captchas/captcha.png')
         flag = False
 
 # todo check whether logged in succesfully
