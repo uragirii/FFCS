@@ -87,7 +87,8 @@ def get_captcha(driver,element):
     bottom = location['y'] + size['height']
     image = image.crop((left, top, right, bottom))
     image.show()
-    captcha = input("Please enter the captcha code as shown.(Not Case Sensitive)\n")
+    captcha = input("Please enter the captcha code as shown.(Not Case Sensitive)\nIf there is error while showing "
+                    "captcha, go to Files/captchas folder and open capctcha.png, and then enter the code\n")
     image.save('Files/captchas/captcha.png', 'png')
     return captcha
 
@@ -249,7 +250,7 @@ for tr in soup.find_all('tr', attrs={'onmouseout': "this.bgColor='#E6F2FF'"}):
 # print("Got details of all the subjects from date 3-Dec-2018 to", create_date(), "\n")
 print("-----------------------\n")
 print("Found error in code? Want to suggest something? Email me at : mldata.apoorv@gmail.com\n")
-print("Want to know how I calculate this stuff? Check calc file on github.com/uragirii/ffcs/calc")
+print("Want to know how I calculate this stuff? Check calc file on github.com/uragirii/ffcs")
 print("This script doesn't check whether future classes will be held or not.")
 print("-----------------------")
 
