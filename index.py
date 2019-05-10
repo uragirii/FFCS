@@ -12,6 +12,8 @@ try:
     from bs4 import BeautifulSoup
     import lxml
     from PIL import Image
+    import cv2
+    import numpy as np
 except ImportError:
     import pip
     try:
@@ -20,6 +22,8 @@ except ImportError:
         pip.main(['install', 'beautifulsoup4'])
         pip.main(['install', 'lxml'])
         pip.main(['install', 'Pillow'])
+        pip.main(['install','numpy'])
+        pip.main(['install', 'opencv-python'])
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
         from selenium.webdriver.common.keys import Keys
@@ -68,15 +72,63 @@ class Subject:
     def _calc_need_class(self):
         return 3 * self.total - 4 * self.present
 
+# path = 'files/unlabelled/'
+key_path = 'files/keys/'
+# list_of_captcha = os.listdir(path)
+list_of_keys = os.listdir(key_path)
+
+def get_random_captcha(img):
+    # if img == '':
+    #     img = list_of_captcha[randint(0,len(list_of_captcha))]
+    #     img = path + img
+    image = Image.open(img).convert("L")
+    pixel_matrix = np.array(image)
+    for col in range(pixel_matrix.shape[1]-1):
+        for row in range(pixel_matrix.shape[0]-1):
+            if pixel_matrix[row,col] == 250:
+                pixel_matrix[row,col] = 0
+            if pixel_matrix[row, col] == 86:
+                pixel_matrix[row, col] = 255
+    changed_image = Image.fromarray(pixel_matrix)
+    changed_image.save("test.png")
+
+def remove_noise():
+    img = cv2.imread("test.png",0)
+    # plt.imshow(img)
+    # plt.show()
+    kernel_mor = np.ones((2,2),np.uint8)
+    kernel_ero = np.ones((1,1), np.uint8)
+    morph = cv2.morphologyEx(img,cv2.MORPH_OPEN,kernel_mor)
+    ero = cv2.erode(morph,kernel_ero, iterations =1)
+    # I'm not showing the morphed image and also not storing that image
+    # plt.imshow(ero)
+    # plt.show()
+    cv2.imwrite("erosion.png", ero)
+
+def detect_letters():
+    max_detail = []
+    img = cv2.imread('erosion.png', 0)
+    for key_file in list_of_keys:
+        template = cv2.imread(key_path + key_file, 0)
+        res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        max_detail.append((key_file, max_val, max_loc))
+    # Now sort the files according to max_val and find the top 6
+    # TODO: solve for multiple occurances
+    raw_letters =  sorted(sorted(max_detail, key=lambda x : x[1], reverse = True)[0:6], key=lambda x:x[2][0])
+    captcha_val = ''
+    for letter in raw_letters:
+        captcha_val = captcha_val + letter[0][0].upper()
+    return captcha_val
 
 def get_captcha(driver,element):
     """
     :param driver: Takes the selenium object
     :return: The captcha as entered by user
     """
-    path = 'Files/captchas/captcha.png'
-    if not os.path.exists('Files/captchas'):
-        os.mkdir('Files/captchas')
+    path = 'files/captchas/captcha.png'
+    if not os.path.exists('files/captchas'):
+        os.mkdir('files/captchas')
     location = element.location
     size = element.size
     driver.save_screenshot(path)
@@ -86,10 +138,16 @@ def get_captcha(driver,element):
     right = location['x'] + size['width']
     bottom = location['y'] + size['height']
     image = image.crop((left, top, right, bottom))
-    image.show()
-    captcha = input("Please enter the captcha code as shown.(Not Case Sensitive)\nIf there is error while showing "
-                    "captcha, go to Files/captchas folder and open captcha.png, and then enter the code\n")
-    image.save('Files/captchas/captcha.png', 'png')
+    image.save(path)
+    # Now call function
+    get_random_captcha(path)
+    remove_noise()
+
+
+    # captcha = input("Please enter the captcha code as shown.(Not Case Sensitive)\nIf there is error while showing "
+    #                 "captcha, go to files/captchas folder and open captcha.png, and then enter the code\n")
+    # image.save('files/captchas/captcha.png', 'png')
+    captcha = detect_letters()
     return captcha
 
 
@@ -161,7 +219,7 @@ def login(driver, reg_num, password):
     try:
         captcha = get_captcha(driver, captcha_img).upper()
         # todo check whether captcha is correct and then rename it.
-        # os.rename('Files/captchas/captcha.png', 'Files/captchas/'+captcha+'.png')
+        # os.rename('files/captchas/captcha.png', 'files/captchas/'+captcha+'.png')
     except Exception as e:
         print(e)
 
@@ -184,6 +242,7 @@ def login(driver, reg_num, password):
     cap.send_keys(data['vrfcd'])
     driver.find_element_by_xpath("/html/body/table[3]/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[6]/td/"
                                  "input[1]").click()
+    return captcha
 
 
 
@@ -198,18 +257,18 @@ ATTENDACE_URL = r'https://academicscc.vit.ac.in/student/attn_report.asp?sem=WS&f
 options = Options()
 options.add_argument('log-level=3')
 options.headless = True
-chrome_driver = r'Files/chromedriver.exe'
+chrome_driver = r'files/chromedriver.exe'
 
 if not os.path.exists(chrome_driver):   # Checking and downloading chrome driver
-    print("Chrome driver does not exist. Downloading it and saving in {Files} folder")
+    print("Chrome driver does not exist. Downloading it and saving in {files} folder")
     # TODO Download chrome driver for platform specific
     # check using sys.platform, win32, linux, darwin
-    os.mkdir('Files')
+    os.mkdir('files')
     download_file("https://chromedriver.storage.googleapis.com/2.44/chromedriver_win32.zip", "chromedriver.zip",
-                  "Files")
+                  "files")
     print("Extracting components")
-    with zipfile.ZipFile(os.path.join("Files", "chromedriver.zip"), "r") as zip_ref:
-        zip_ref.extractall("./Files")
+    with zipfile.ZipFile(os.path.join("files", "chromedriver.zip"), "r") as zip_ref:
+        zip_ref.extractall("./files")
     print("Complete.")
 
 
@@ -217,7 +276,7 @@ driver = webdriver.Chrome(chrome_driver, options = options)
 flag = True
 
 while flag:
-    login(driver, reg_num, password)
+    captc = login(driver, reg_num, password)
 
     try:
         alert = driver.switch_to.alert
@@ -229,15 +288,15 @@ while flag:
             alert.accept()
         # Check for capctha
         if 'Verification' in alert_text:
-            print("You have entered wrong value of captcha. Please enter again")
+            print("Generated Wrong Value of Captcha. Trying again")
             alert.accept()
     except NoAlertPresentException as e:
-        os.remove('Files/captchas/captcha.png')
+        os.rename('files/captchas/captcha.png', "files/captchas/"+captc+".png")
         flag = False
 
 # todo check whether logged in succesfully
 # Logged In successfully
-
+print('\nGetting Attendance Details.Please wait')
 driver.get(ATTENDACE_URL)
 soup = BeautifulSoup(driver.page_source, 'lxml')
 all_subjects = []
